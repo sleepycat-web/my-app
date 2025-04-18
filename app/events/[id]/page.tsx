@@ -13,7 +13,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
     date: "December 15, 2025",
     venue: "Grand Ballroom",
     address: "123 Main St, New York, NY",
-    guests: 75,
+    guestCount: 75,
     type: "corporate",
     budget: "$5,000",
     description: "Annual company holiday celebration with dinner, drinks, and entertainment.",
@@ -79,7 +79,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                     <h3 className="text-sm font-medium text-muted-foreground">Guests</h3>
                     <p className="flex items-center mt-1">
                       <Users className="h-4 w-4 mr-1 text-muted-foreground" />
-                      {event.guests} people
+                      {event.guestCount} people
                     </p>
                   </div>
                 </div>
