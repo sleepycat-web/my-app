@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatePicker } from "@/components/date-picker"
+import { TimePicker } from "@/components/time-picker"
 import { Sparkles, Loader2 } from "lucide-react"
 import { AIEventSuggestions } from "@/components/ai-event-suggestions"
 
@@ -23,6 +24,8 @@ export default function CreateEventPage() {
     name: "",
     type: "",
     date: undefined as Date | undefined,
+    startTime: "",
+    endTime: "",
     budget: "",
     guestCount: "",
     description: "",
@@ -104,6 +107,18 @@ export default function CreateEventPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label htmlFor="startTime">Start Time</Label>
+                    <TimePicker value={formData.startTime} onChange={(time) => handleChange("startTime", time)} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="endTime">End Time</Label>
+                    <TimePicker value={formData.endTime} onChange={(time) => handleChange("endTime", time)} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label htmlFor="budget">Budget (USD)</Label>
                     <Input
                       id="budget"
@@ -165,7 +180,10 @@ export default function CreateEventPage() {
           </form>
 
           {showSuggestions && (
-            <AIEventSuggestions eventType={formData.type} guestCount={Number.parseInt(formData.guestCount) || 0} />
+            <AIEventSuggestions
+              eventType={formData.type}
+              guestCount={formData.guestCount ? Number.parseInt(formData.guestCount, 10) : 0}
+            />
           )}
         </div>
       </main>

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"           // added import
 
 // Mock data for events
 const mockEvents = [
@@ -203,7 +202,7 @@ export function CalendarView() {
                   <div>
                     <p className="font-medium">{event.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {format(event.date, "MM/dd/yyyy")} • {event.venue}   // replaced locale date
+                      {event.date.toLocaleDateString()} • {event.venue}
                     </p>
                   </div>
                   <div className="text-xs px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-800 dark:text-purple-300">
