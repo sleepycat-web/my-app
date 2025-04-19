@@ -1,25 +1,38 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardHeader } from "@/components/dashboard-header"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DatePicker } from "@/components/date-picker"
-import { TimePicker } from "@/components/time-picker"
-import { Sparkles, Loader2 } from "lucide-react"
-import { AIEventSuggestions } from "@/components/ai-event-suggestions"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardHeader } from "@/components/dashboard-header";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DatePicker } from "@/components/date-picker";
+import { TimePicker } from "@/components/time-picker";
+import { Sparkles, Loader2 } from "lucide-react";
+import { AIEventSuggestions } from "@/components/ai-event-suggestions";
 
 export default function CreateEventPage() {
-  const router = useRouter()
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const router = useRouter();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -29,32 +42,69 @@ export default function CreateEventPage() {
     budget: "",
     guestCount: "",
     description: "",
-  })
+  });
+  // user currency preference
+  const [currency, setCurrency] = useState<string>("INR");
+
+  useEffect(() => {
+    fetch("/api/users/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user?.preferences?.currency) {
+          setCurrency(data.user.preferences.currency);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  // validate time order
+  const isTimeInvalid: boolean = !!formData.startTime && !!formData.endTime && isTimeBefore(formData.endTime, formData.startTime);
 
   const handleChange = (field: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // utility to compare “hh:mm AM/PM” times
+  function isTimeBefore(t1: string, t2: string): boolean {
+    const toMinutes = (t: string) => {
+      const [hms, period] = t.split(" ");
+      const [h, m] = hms.split(":").map(Number);
+      const h24 = (h % 12) + (period === "PM" ? 12 : 0);
+      return h24 * 60 + m;
+    };
+    return toMinutes(t1) < toMinutes(t2);
   }
 
   const generateSuggestions = () => {
     if (!formData.type || !formData.guestCount) {
-      alert("Please select an event type and enter guest count to get suggestions")
-      return
+      alert(
+        "Please select an event type and enter guest count to get suggestions"
+      );
+      return;
+    }
+    if (
+      formData.startTime &&
+      formData.endTime &&
+      isTimeBefore(formData.endTime, formData.startTime)
+    ) {
+      alert("End time cannot be before start time");
+      return;
     }
 
-    setIsGenerating(true)
+    setIsGenerating(true);
 
     // Simulate API call to AI service
     setTimeout(() => {
-      setIsGenerating(false)
-      setShowSuggestions(true)
-    }, 2000)
-  }
+      setIsGenerating(false);
+      setShowSuggestions(true);
+    }, 2000);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     // In a real app, we would save the event to the database
-    router.push("/")
-  }
+    router.push("/");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -68,7 +118,9 @@ export default function CreateEventPage() {
             <Card className="mb-8">
               <CardHeader>
                 <CardTitle>Event Details</CardTitle>
-                <CardDescription>Provide the basic information about your event</CardDescription>
+                <CardDescription>
+                  Provide the basic information about your event
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -85,14 +137,19 @@ export default function CreateEventPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="type">Event Type</Label>
-                    <Select onValueChange={(value) => handleChange("type", value)} required>
+                    <Select
+                      onValueChange={(value) => handleChange("type", value)}
+                      required
+                    >
                       <SelectTrigger id="type">
                         <SelectValue placeholder="Select event type" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="birthday">Birthday Party</SelectItem>
                         <SelectItem value="wedding">Wedding</SelectItem>
-                        <SelectItem value="corporate">Corporate Event</SelectItem>
+                        <SelectItem value="corporate">
+                          Corporate Event
+                        </SelectItem>
                         <SelectItem value="conference">Conference</SelectItem>
                         <SelectItem value="social">Social Gathering</SelectItem>
                       </SelectContent>
@@ -101,25 +158,40 @@ export default function CreateEventPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="date">Event Date</Label>
-                    <DatePicker onChange={(date) => handleChange("date", date)} />
+                    <DatePicker
+                      onChange={(date) => handleChange("date", date)}
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="startTime">Start Time</Label>
-                    <TimePicker value={formData.startTime} onChange={(time) => handleChange("startTime", time)} />
+                    <TimePicker
+                      value={formData.startTime}
+                      placeholder="Select start time"
+                      onChange={(time) => handleChange("startTime", time)}
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="endTime">End Time</Label>
-                    <TimePicker value={formData.endTime} onChange={(time) => handleChange("endTime", time)} />
+                    <TimePicker
+                      value={formData.endTime}
+                      placeholder="Select end time"
+                      onChange={(time) => handleChange("endTime", time)}
+                    />
+                    {isTimeInvalid && (
+                      <p className="text-sm text-red-600">
+                        End time cannot be before start time
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="budget">Budget (INR)</Label>
+                    <Label htmlFor="budget">Budget ({currency})</Label>
                     <Input
                       id="budget"
                       type="number"
@@ -136,7 +208,9 @@ export default function CreateEventPage() {
                       type="number"
                       placeholder="Enter guest count"
                       value={formData.guestCount}
-                      onChange={(e) => handleChange("guestCount", e.target.value)}
+                      onChange={(e) =>
+                        handleChange("guestCount", e.target.value)
+                      }
                       required
                     />
                   </div>
@@ -149,7 +223,9 @@ export default function CreateEventPage() {
                     placeholder="Describe your event"
                     rows={4}
                     value={formData.description}
-                    onChange={(e) => handleChange("description", e.target.value)}
+                    onChange={(e) =>
+                      handleChange("description", e.target.value)
+                    }
                   />
                 </div>
               </CardContent>
@@ -158,7 +234,15 @@ export default function CreateEventPage() {
                   type="button"
                   variant="outline"
                   onClick={generateSuggestions}
-                  disabled={isGenerating || !formData.type || !formData.guestCount}
+                  disabled={
+                    isGenerating ||
+                    !formData.name ||
+                    !formData.type ||
+                    !formData.date ||
+                    !formData.startTime ||
+                    !formData.endTime ||
+                    isTimeInvalid
+                  }
                 >
                   {isGenerating ? (
                     <>
@@ -172,7 +256,11 @@ export default function CreateEventPage() {
                     </>
                   )}
                 </Button>
-                <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
+                <Button
+                  type="submit"
+                  disabled={isTimeInvalid}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
                   Create Event
                 </Button>
               </CardFooter>
@@ -182,11 +270,15 @@ export default function CreateEventPage() {
           {showSuggestions && (
             <AIEventSuggestions
               eventType={formData.type}
-              guestCount={formData.guestCount ? Number.parseInt(formData.guestCount, 10) : 0}
+              guestCount={
+                formData.guestCount
+                  ? Number.parseInt(formData.guestCount, 10)
+                  : 0
+              }
             />
           )}
         </div>
       </main>
     </div>
-  )
+  );
 }
