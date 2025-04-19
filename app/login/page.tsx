@@ -78,7 +78,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder="Enter your email"
                 value={formData.email}
                 onChange={(e) => handleChange("email", e.target.value)}
                 required
@@ -97,7 +97,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 value={formData.password}
                 onChange={(e) => handleChange("password", e.target.value)}
                 required

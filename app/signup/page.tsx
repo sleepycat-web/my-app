@@ -90,7 +90,7 @@ export default function SignupPage() {
               <Label htmlFor="name">Full Name</Label>
               <Input
                 id="name"
-                placeholder="John Doe"
+                placeholder="Enter your name"
                 value={formData.name}
                 onChange={(e) => handleChange("name", e.target.value)}
                 required
@@ -101,7 +101,7 @@ export default function SignupPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder="Enter your email"
                 value={formData.email}
                 onChange={(e) => handleChange("email", e.target.value)}
                 required
@@ -112,7 +112,7 @@ export default function SignupPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 value={formData.password}
                 onChange={(e) => handleChange("password", e.target.value)}
                 required
@@ -123,7 +123,7 @@ export default function SignupPage() {
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Confirm your password"
                 value={formData.confirmPassword}
                 onChange={(e) =>
                   handleChange("confirmPassword", e.target.value)

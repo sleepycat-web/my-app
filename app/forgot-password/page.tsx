@@ -85,6 +85,7 @@ export default function ForgotPasswordPage() {
               <Input
                 id="email"
                 type="email"
+                placeholder="Enter your email"
                 required
                 value={form.email}
                 onChange={(e) => handleChange("email", e.target.value)}
@@ -95,6 +96,7 @@ export default function ForgotPasswordPage() {
               <Input
                 id="password"
                 type="password"
+                placeholder="Enter your password"
                 required
                 value={form.password}
                 onChange={(e) => handleChange("password", e.target.value)}
@@ -105,6 +107,7 @@ export default function ForgotPasswordPage() {
               <Input
                 id="confirm"
                 type="password"
+                placeholder="Confirm your password"
                 required
                 value={form.confirm}
                 onChange={(e) => handleChange("confirm", e.target.value)}
