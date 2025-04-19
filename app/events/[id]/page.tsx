@@ -9,7 +9,14 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, MapPin, Clock, CheckSquare, Edit } from "lucide-react";
+import {
+  CalendarDays,
+  MapPin,
+  Clock,
+  CheckSquare,
+  Edit,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
 import { connectToDatabase } from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -77,6 +84,15 @@ export default async function EventDetailPage({
                     </h3>
                     <p className="mt-1">
                       {event.startTime} - {event.endTime}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground">
+                      Guests
+                    </h3>
+                    <p className="flex items-center mt-1">
+                      <Users className="h-4 w-4 mr-1 text-muted-foreground" />
+                      {event.details.guests || "N/A"}
                     </p>
                   </div>
                 </div>

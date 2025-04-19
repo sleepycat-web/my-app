@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CalendarDays, MapPin, Clock, Plus } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Plus, Users } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardContent() {
@@ -78,6 +78,10 @@ export default function DashboardContent() {
                     <span>
                       {event.startTime} - {event.endTime}
                     </span>
+                  </div>
+                  <div className="flex items-center text-sm">
+                    <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span>{event.details.guests}</span>
                   </div>
                 </div>
               </CardContent>
