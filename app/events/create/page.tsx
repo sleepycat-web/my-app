@@ -27,12 +27,23 @@ import {
 import { DatePicker } from "@/components/date-picker";
 import { TimePicker } from "@/components/time-picker";
 import { Sparkles, Loader2 } from "lucide-react";
-import { AIEventSuggestions } from "@/components/ai-event-suggestions";
+
+// Define a type for the place result for better type safety
+interface PlaceSearchResult {
+  id: string;
+  formattedAddress: string;
+  displayName?: {
+    text: string;
+    languageCode: string;
+  };
+  // Add other fields you might need from the API response based on your field mask
+}
 
 export default function CreateEventPage() {
   const router = useRouter();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false); // State for search loading
+  const [searchResults, setSearchResults] = useState<PlaceSearchResult[]>([]); // State for search results
+
   const [formData, setFormData] = useState({
     name: "",
     type: "",
@@ -41,6 +52,7 @@ export default function CreateEventPage() {
     endTime: "",
     budget: "",
     guestCount: "",
+    location: "", // Add location field
     description: "",
   });
   // user currency preference
@@ -58,7 +70,10 @@ export default function CreateEventPage() {
   }, []);
 
   // validate time order
-  const isTimeInvalid: boolean = !!formData.startTime && !!formData.endTime && isTimeBefore(formData.endTime, formData.startTime);
+  const isTimeInvalid: boolean =
+    !!formData.startTime &&
+    !!formData.endTime &&
+    isTimeBefore(formData.endTime, formData.startTime);
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -75,29 +90,53 @@ export default function CreateEventPage() {
     return toMinutes(t1) < toMinutes(t2);
   }
 
-  const generateSuggestions = () => {
-    if (!formData.type || !formData.guestCount) {
+  // Function to handle venue search
+  const handleSearchVenues = async () => {
+    if (!formData.type || !formData.guestCount || !formData.location) {
       alert(
-        "Please select an event type and enter guest count to get suggestions"
+        "Please select event type, enter guest count, and specify a location to search for venues."
       );
       return;
     }
-    if (
-      formData.startTime &&
-      formData.endTime &&
-      isTimeBefore(formData.endTime, formData.startTime)
-    ) {
-      alert("End time cannot be before start time");
-      return;
+
+    setIsSearching(true);
+    setSearchResults([]); // Clear previous results
+
+    try {
+      // Construct a query for the Places API
+      const textQuery = `${formData.type} venue for ${formData.guestCount} guests near ${formData.location}`;
+
+      const response = await fetch("/api/places/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          textQuery,
+          // Specify desired fields to reduce cost and data transfer
+          fields: "places.id,places.displayName,places.formattedAddress",
+          maxResultCount: 20, // Limit results for display
+        }),
+      });
+console.log("Response from API:", response);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to search for places");
+      }
+
+      const data = await response.json();
+      setSearchResults(data.places || []); // Update results, ensuring it's an array
+    } catch (error) {
+      console.error("Error searching for venues:", error);
+      alert(
+        `Error searching for venues: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+      setSearchResults([]); // Clear results on error
+    } finally {
+      setIsSearching(false);
     }
-
-    setIsGenerating(true);
-
-    // Simulate API call to AI service
-    setTimeout(() => {
-      setIsGenerating(false);
-      setShowSuggestions(true);
-    }, 2000);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -216,6 +255,18 @@ export default function CreateEventPage() {
                   </div>
                 </div>
 
+                {/* Add Location Input */}
+                <div className="space-y-2">
+                  <Label htmlFor="location">Location (City or Area)</Label>
+                  <Input
+                    id="location"
+                    placeholder="e.g., San Francisco, CA or near downtown"
+                    value={formData.location}
+                    onChange={(e) => handleChange("location", e.target.value)}
+                    required
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
                   <Textarea
@@ -229,36 +280,36 @@ export default function CreateEventPage() {
                   />
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={generateSuggestions}
-                  disabled={
-                    isGenerating ||
-                    !formData.name ||
-                    !formData.type ||
-                    !formData.date ||
-                    !formData.startTime ||
-                    !formData.endTime ||
-                    isTimeInvalid
-                  }
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Get AI Suggestions
-                    </>
-                  )}
-                </Button>
+              <CardFooter className="flex justify-between items-start flex-wrap gap-4">
+                {/* Replace AI Suggestions button with Search Venues button */}
+                <div className="flex flex-col items-start">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSearchVenues}
+                    disabled={
+                      isSearching ||
+                      !formData.type ||
+                      !formData.guestCount ||
+                      !formData.location
+                    }
+                  >
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Searching Venues...
+                      </>
+                    ) : (
+                      "Get AI Suggestions"
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Requires Type, Guests, and Location.
+                  </p>
+                </div>
                 <Button
                   type="submit"
-                  disabled={isTimeInvalid}
+                  disabled={isTimeInvalid || isSearching} // Disable create if searching
                   className="bg-purple-600 hover:bg-purple-700"
                 >
                   Create Event
@@ -267,15 +318,40 @@ export default function CreateEventPage() {
             </Card>
           </form>
 
-          {showSuggestions && (
-            <AIEventSuggestions
-              eventType={formData.type}
-              guestCount={
-                formData.guestCount
-                  ? Number.parseInt(formData.guestCount, 10)
-                  : 0
-              }
-            />
+          {/* Display Search Results */}
+          {(isSearching || searchResults.length > 0) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Venue Suggestions</CardTitle>
+                <CardDescription>
+                  Based on your event details and location.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isSearching ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2">Loading suggestions...</span>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <ul className="space-y-3">
+                    {searchResults.map((place) => (
+                      <li key={place.id} className="border p-3 rounded-md">
+                        <p className="font-semibold">
+                          {place.displayName?.text || "Unnamed Place"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {place.formattedAddress}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  // This case might not be reached if the section is only shown when length > 0 after loading
+                  <p>No venues found matching your criteria.</p>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
       </main>
