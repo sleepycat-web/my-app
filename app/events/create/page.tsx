@@ -53,6 +53,8 @@ export default function CreateEventPage() {
   const router = useRouter();
   const [isSearching, setIsSearching] = useState(false); // State for search loading
   const [searchResults, setSearchResults] = useState<PlaceSearchResult[]>([]); // State for search results
+  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null); // State for selected venue ID
+  const [isSubmitting, setIsSubmitting] = useState(false); // State for submission loading
 
   const [formData, setFormData] = useState({
     name: "",
@@ -62,7 +64,8 @@ export default function CreateEventPage() {
     endTime: "",
     budget: "",
     guestCount: "",
-    location: "", // Add location field
+    location: "", // Location for search
+    manualVenue: "", // New field for manual venue entry
     description: "",
   });
   // user currency preference
@@ -89,6 +92,14 @@ export default function CreateEventPage() {
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    // If manual venue is being changed (meaning it's visible and user is typing),
+    // ensure selected venue ID is cleared. This should only happen if selectedVenueId was already null.
+    if (field === "manualVenue" && value.trim() !== "") {
+      // This check might be redundant now due to conditional rendering, but safe to keep.
+      if (selectedVenueId) {
+        setSelectedVenueId(null);
+      }
+    }
   };
 
   // utility to compare “hh:mm AM/PM” times
@@ -113,6 +124,7 @@ export default function CreateEventPage() {
 
     setIsSearching(true);
     setSearchResults([]); // Clear previous results
+    setSelectedVenueId(null); // Reset selection on new search
 
     try {
       // Construct a query for the Places API
@@ -162,10 +174,106 @@ export default function CreateEventPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Function to handle venue selection
+  const handleSelectVenue = (venueId: string) => {
+    const isSelecting = selectedVenueId !== venueId;
+    const newSelectedVenueId = isSelecting ? venueId : null;
+    setSelectedVenueId(newSelectedVenueId); // Toggle selection
+
+    // If selecting a venue, clear the manual venue input (it will be hidden anyway)
+    // If deselecting, manualVenue remains as it was (likely empty).
+    if (isSelecting) {
+      setFormData((prev) => ({ ...prev, manualVenue: "" }));
+      // Optionally clear location as well, though it's hidden when selected
+      // setFormData((prev) => ({ ...prev, location: "", manualVenue: "" }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, we would save the event to the database
-    router.push("/");
+    if (isTimeInvalid) return;
+    // // Check if search was performed and if a venue is selected - Removed this check to allow manual entry
+    // if (searchResults.length > 0 && !selectedVenueId && !formData.manualVenue) {
+    //   alert("Please select a venue from the suggestions or enter one manually.");
+    //   return;
+    // }
+
+    setIsSubmitting(true);
+
+    let venueString = "";
+    if (formData.manualVenue.trim()) {
+      // Prioritize manual venue input
+      venueString = formData.manualVenue.trim();
+    } else if (selectedVenueId) {
+      // Use selected venue if no manual input
+      const selectedVenue = searchResults.find((p) => p.id === selectedVenueId);
+      if (selectedVenue) {
+        venueString = `${selectedVenue.displayName?.text || "Venue"}, ${
+          selectedVenue.formattedAddress
+        }`;
+        if (selectedVenue.nationalPhoneNumber) {
+          venueString += `, Phone: ${selectedVenue.nationalPhoneNumber}`;
+        }
+      } else {
+        // Fallback if selectedVenueId is somehow invalid, though unlikely
+        venueString = formData.location;
+      }
+    } else {
+      // Fallback to location if neither manual nor selected venue exists
+      venueString = formData.location;
+    }
+
+    const eventData = {
+      eventName: formData.name,
+      date: formData.date ? formData.date.toLocaleDateString() : "", // Format date as needed
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      details: {
+        venue: venueString, // Use the determined venue string
+        type: formData.type,
+        guests: formData.guestCount ? `${formData.guestCount} people` : "",
+        budget: formData.budget ? `${currency} ${formData.budget}` : "",
+        description: formData.description,
+      },
+      // timeline and tasks are omitted for now as requested
+      timeline: [],
+      tasks: [],
+      // Assuming 'name' field in the target structure is the event name
+      name: formData.name,
+      // You might need to add user email or ID here depending on your API
+      // email: "user@example.com",
+    };
+
+    console.log("Submitting Event Data:", eventData);
+
+    try {
+      // TODO: Replace with actual API call to POST /api/events
+      // const response = await fetch('/api/events', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(eventData),
+      // });
+      // if (!response.ok) {
+      //   throw new Error('Failed to create event');
+      // }
+      // const result = await response.json();
+      // console.log('Event created:', result);
+
+      // Simulate API call delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      alert("Event created successfully (simulated)!");
+      router.push("/"); // Redirect after successful submission
+    } catch (error) {
+      console.error("Error creating event:", error);
+      alert(
+        `Failed to create event: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -185,6 +293,7 @@ export default function CreateEventPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* ... other form fields (name, type, date, time, budget, guests) ... */}
                 <div className="space-y-2">
                   <Label htmlFor="name">Event Name</Label>
                   <Input
@@ -278,18 +387,90 @@ export default function CreateEventPage() {
                   </div>
                 </div>
 
-                {/* Add Location Input */}
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location (City or Area)</Label>
-                  <Input
-                    id="location"
-                    placeholder="e.g., San Francisco, CA or near downtown"
-                    value={formData.location}
-                    onChange={(e) => handleChange("location", e.target.value)}
-                    required
-                  />
-                </div>
+                {/* Conditional Rendering for Venue/Location Inputs vs Selected Venue Card */}
+                {!selectedVenueId ? (
+                  <>
+                    {/* Show Inputs when no venue is selected */}
+                    <div className="space-y-2">
+                      <Label htmlFor="location">
+                        Location (for Venue Search)
+                      </Label>
+                      <Input
+                        id="location"
+                        placeholder="Enter the location"
+                        value={formData.location}
+                        onChange={(e) =>
+                          handleChange("location", e.target.value)
+                        }
+                        required // Keep required for search functionality
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="manualVenue">
+                        Venue Name & Address (Optional)
+                      </Label>
+                      <Input
+                        id="manualVenue"
+                        placeholder="Enter venue name and address if known, or select from suggestions below"
+                        value={formData.manualVenue}
+                        onChange={(e) =>
+                          handleChange("manualVenue", e.target.value)
+                        }
+                        // No longer needs disabled attribute here
+                      />
+                      {/* <p className="text-xs text-muted-foreground">
+                        Or use 'Get AI Suggestions' based on location.
+                      </p> */}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Show Selected Venue Card when a venue is selected */}
+                    {(() => {
+                      // Find the selected venue once
+                      const selectedVenue = searchResults.find(
+                        (p) => p.id === selectedVenueId
+                      );
+                      if (!selectedVenue) return null; // Return null if not found (shouldn't happen ideally)
 
+                      return (
+                        <Card className="bg-purple-50 border border-purple-200 shadow-sm">
+                          <CardHeader className="relative flex flex-row items-center justify-between py-2 px-4">
+                            <CardTitle className="text-sm font-semibold text-purple-800 leading-none">
+                              Selected Venue
+                            </CardTitle>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-purple-600 hover:bg-purple-100 hover:text-purple-800"
+                              // Pass the actual ID to handleSelectVenue for deselection
+                              onClick={() => handleSelectVenue(selectedVenueId)}
+                            >
+                              Clear
+                            </Button>
+                          </CardHeader>
+                          <CardContent className="text-purple-700 px-4 pb-3 space-y-1">
+                            <p className="font-medium text-sm leading-tight">
+                              {selectedVenue.displayName?.text ||
+                                "Venue Name Unavailable"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedVenue.formattedAddress}
+                            </p>
+                            {selectedVenue.nationalPhoneNumber && (
+                              <p className="text-xs text-blue-500 flex items-center pt-0.5">
+                                <Phone className="w-3 h-3 mr-1.5 flex-shrink-0" />
+                                {selectedVenue.nationalPhoneNumber}
+                              </p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })()}
+                  </>
+                )}
+
+                {/* Description Input */}
                 <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
                   <Textarea
@@ -304,7 +485,7 @@ export default function CreateEventPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex justify-between items-start flex-wrap gap-4">
-                {/* Replace AI Suggestions button with Search Venues button */}
+                {/* Search Venues button */}
                 <div className="flex flex-col items-start">
                   <Button
                     type="button"
@@ -314,7 +495,8 @@ export default function CreateEventPage() {
                       isSearching ||
                       !formData.type ||
                       !formData.guestCount ||
-                      !formData.location
+                      !formData.location || // Disable search if location is empty
+                      !!selectedVenueId // Also disable if a venue is selected (location input is hidden)
                     }
                   >
                     {isSearching ? (
@@ -326,28 +508,42 @@ export default function CreateEventPage() {
                       "Get AI Suggestions"
                     )}
                   </Button>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Requires Type, Guests, and Location.
-                  </p>
+                  {!selectedVenueId && ( // Only show hint if inputs are visible
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Requires Type, Guests, and Location.
+                    </p>
+                  )}
                 </div>
+                {/* Create Event Button */}
                 <Button
                   type="submit"
-                  disabled={isTimeInvalid || isSearching} // Disable create if searching
+                  disabled={isTimeInvalid || isSubmitting}
                   className="bg-purple-600 hover:bg-purple-700"
                 >
-                  Create Event
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Event"
+                  )}
                 </Button>
               </CardFooter>
             </Card>
           </form>
 
+          {/* Display Selected Venue Info - MOVED INSIDE FORM CARD */}
+          {/* {selectedVenueId && ... } */}
+
           {/* Display Search Results */}
           {(isSearching || searchResults.length > 0) && (
-            <Card>
+            <Card className="mb-8">
+              {/* ... existing search results rendering ... */}
               <CardHeader>
                 <CardTitle>Venue Suggestions</CardTitle>
                 <CardDescription>
-                  Based on your event details and location.
+                  Based on your event details and location. Click one to select.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -374,7 +570,13 @@ export default function CreateEventPage() {
                         // Use the provided JSX structure
                         <li
                           key={place.id}
-                          className="border rounded-md shadow-sm overflow-hidden"
+                          className={`border rounded-md shadow-sm overflow-hidden cursor-pointer transition-all duration-200 ease-in-out ${
+                            // Added transition
+                            selectedVenueId === place.id
+                              ? "border-purple-500 ring-2 ring-purple-300 ring-offset-2 bg-neutral-100 dark:bg-neutral-800" // Enhanced highlight
+                              : "border-border hover:shadow-md hover:border-gray-300" // Hover effect for non-selected
+                          }`}
+                          onClick={() => handleSelectVenue(place.id)} // Use new handler
                         >
                           {photoUrl ? (
                             <div className="relative w-full h-48">
