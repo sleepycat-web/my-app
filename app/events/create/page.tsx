@@ -55,6 +55,7 @@ export default function CreateEventPage() {
   const [searchResults, setSearchResults] = useState<PlaceSearchResult[]>([]); // State for search results
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null); // State for selected venue ID
   const [isSubmitting, setIsSubmitting] = useState(false); // State for submission loading
+  const [userEmail, setUserEmail] = useState<string | null>(null); // State for user email
 
   const [formData, setFormData] = useState({
     name: "",
@@ -79,6 +80,9 @@ export default function CreateEventPage() {
       .then((data) => {
         if (data.user?.preferences?.currency) {
           setCurrency(data.user.preferences.currency);
+        }
+        if (data.user?.email) { // Add this check
+          setUserEmail(data.user.email); // Store the email
         }
       })
       .catch(console.error);
@@ -200,6 +204,13 @@ export default function CreateEventPage() {
 
     setIsSubmitting(true);
 
+    // Ensure user email is available
+    if (!userEmail) {
+      alert("User email not found. Please ensure you are logged in.");
+      setIsSubmitting(false);
+      return;
+    }
+
     let venueString = "";
     if (formData.manualVenue.trim()) {
       // Prioritize manual venue input
@@ -224,45 +235,46 @@ export default function CreateEventPage() {
     }
 
     const eventData = {
+      email: userEmail, // Include the user's email
       eventName: formData.name,
-      date: formData.date ? formData.date.toLocaleDateString() : "", // Format date as needed
+      date: formData.date ? formData.date.toLocaleDateString('en-US', { // Example formatting, adjust as needed
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }) : "",
       startTime: formData.startTime,
       endTime: formData.endTime,
       details: {
-        venue: venueString, // Use the determined venue string
+        venue: venueString,
         type: formData.type,
         guests: formData.guestCount ? `${formData.guestCount} people` : "",
         budget: formData.budget ? `${currency} ${formData.budget}` : "",
         description: formData.description,
       },
-      // timeline and tasks are omitted for now as requested
-      timeline: [],
-      tasks: [],
-      // Assuming 'name' field in the target structure is the event name
-      name: formData.name,
-      // You might need to add user email or ID here depending on your API
-      // email: "user@example.com",
+      timeline: [], // Empty timeline
+      tasks: [],    // Empty tasks
+      name: formData.name, // As per requested format
     };
 
     console.log("Submitting Event Data:", eventData);
 
     try {
-      // TODO: Replace with actual API call to POST /api/events
-      // const response = await fetch('/api/events', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(eventData),
-      // });
-      // if (!response.ok) {
-      //   throw new Error('Failed to create event');
-      // }
-      // const result = await response.json();
-      // console.log('Event created:', result);
+      // Make the actual API call to POST /api/events
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventData),
+      });
 
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!response.ok) {
+        const errorResult = await response.json();
+        throw new Error(errorResult.message || 'Failed to create event');
+      }
 
-      alert("Event created successfully (simulated)!");
+      const result = await response.json();
+      console.log('Event created:', result);
+
+      alert("Event created successfully!");
       router.push("/"); // Redirect after successful submission
     } catch (error) {
       console.error("Error creating event:", error);
@@ -274,7 +286,7 @@ export default function CreateEventPage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }; // <-- Added missing closing brace for handleSubmit
 
   return (
     <div className="min-h-screen bg-background">
