@@ -1,5 +1,5 @@
-import { DashboardContent } from "@/components/dashboard-content"
-import { DashboardHeader } from "@/components/dashboard-header"
+import DashboardContent from "@/components/dashboard-content";
+import { DashboardHeader } from "@/components/dashboard-header";
 
 export default function Home() {
   // In a real app, you would check authentication here
@@ -13,5 +13,5 @@ export default function Home() {
         <DashboardContent />
       </main>
     </div>
-  )
+  );
 }

@@ -17,7 +17,9 @@ export async function GET(request: NextRequest) {
 
     // Find all events for this user
     const events = await eventsCollection
-      .find({ userId: new ObjectId(user.userId) })
+      .find({
+        $or: [{ userId: new ObjectId(user.userId) }, { email: user.email }],
+      })
       .sort({ date: 1 })
       .toArray();
 
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
     const newEvent = {
       ...eventData,
       userId: new ObjectId(user.userId),
+      email: user.email,
       createdAt: new Date(),
     };
 
