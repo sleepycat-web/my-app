@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import Image from "next/image"; // Import Next.js Image component
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -26,7 +27,13 @@ import {
 } from "@/components/ui/select";
 import { DatePicker } from "@/components/date-picker";
 import { TimePicker } from "@/components/time-picker";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Star, Phone } from "lucide-react";
+
+// Define a type for the photo object within the place result
+interface PlacePhoto {
+  name: string; // Resource name, e.g., "places/{place_id}/photos/{photo_reference}"
+  // Add other photo metadata fields if needed (widthPx, heightPx, authorAttributions)
+}
 
 // Define a type for the place result for better type safety
 interface PlaceSearchResult {
@@ -36,6 +43,9 @@ interface PlaceSearchResult {
     text: string;
     languageCode: string;
   };
+  rating?: number; // Add rating field
+  nationalPhoneNumber?: string; // Add phone number field
+  photos?: PlacePhoto[]; // Add photos field (contains metadata)
   // Add other fields you might need from the API response based on your field mask
 }
 
@@ -57,6 +67,8 @@ export default function CreateEventPage() {
   });
   // user currency preference
   const [currency, setCurrency] = useState<string>("INR");
+
+  // Remove the getLocationPhotoRef function and related useEffect hooks previously here
 
   useEffect(() => {
     fetch("/api/users/me")
@@ -113,19 +125,30 @@ export default function CreateEventPage() {
         },
         body: JSON.stringify({
           textQuery,
-          // Specify desired fields to reduce cost and data transfer
-          fields: "places.id,places.displayName,places.formattedAddress",
+          // Specify desired fields including rating, phone number, and photos
+          fields:
+            "places.id,places.displayName,places.formattedAddress,places.rating,places.nationalPhoneNumber,places.photos",
           maxResultCount: 20, // Limit results for display
         }),
       });
-console.log("Response from API:", response);
+      console.log("Response from API:", response);
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to search for places");
       }
 
       const data = await response.json();
-      setSearchResults(data.places || []); // Update results, ensuring it's an array
+      // Sort results by rating descending (handle undefined ratings)
+      const sortedPlaces = (data.places || [])
+        .filter(
+          (place: PlaceSearchResult) =>
+            place.displayName && place.formattedAddress
+        ) // Filter out places missing essential info
+        .sort(
+          (a: PlaceSearchResult, b: PlaceSearchResult) =>
+            (b.rating ?? 0) - (a.rating ?? 0)
+        );
+      setSearchResults(sortedPlaces); // Update results, ensuring it's an array
     } catch (error) {
       console.error("Error searching for venues:", error);
       alert(
@@ -334,20 +357,78 @@ console.log("Response from API:", response);
                     <span className="ml-2">Loading suggestions...</span>
                   </div>
                 ) : searchResults.length > 0 ? (
-                  <ul className="space-y-3">
-                    {searchResults.map((place) => (
-                      <li key={place.id} className="border p-3 rounded-md">
-                        <p className="font-semibold">
-                          {place.displayName?.text || "Unnamed Place"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {place.formattedAddress}
-                        </p>
-                      </li>
-                    ))}
+                  <ul className="space-y-4">
+                    {searchResults.map((place) => {
+                      // Get photo reference directly from search results
+                      const photoName = place.photos?.[0]?.name;
+                      const photoUrl = photoName
+                        ? `/api/places/photos?photoReference=${encodeURIComponent(
+                            photoName
+                          )}`
+                        : null;
+                      // Use state for loading, although direct rendering might suffice
+                      // For simplicity, we'll assume loading is handled by the Image component itself or skip explicit loading state here
+                      // If complex loading state per image is needed, useState/useEffect could be reintroduced here.
+
+                      return (
+                        // Use the provided JSX structure
+                        <li
+                          key={place.id}
+                          className="border rounded-md shadow-sm overflow-hidden"
+                        >
+                          {photoUrl ? (
+                            <div className="relative w-full h-48">
+                              <Image
+                                src={photoUrl}
+                                alt={place.displayName?.text || "Venue image"}
+                                fill
+                                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" // Example sizes, adjust as needed
+                                style={{ objectFit: "cover" }}
+                                priority // Consider removing if many images load initially
+                                // Add onError handler if needed
+                                // onError={() => console.warn(`Failed to load image: ${photoUrl}`)}
+                              />
+                            </div>
+                          ) : (
+                            // Fallback if no photo reference exists
+                            <div className="relative w-full h-24 bg-slate-100 flex items-center justify-center">
+                              <p className="text-sm text-muted-foreground">
+                                No image available
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="p-4">
+                            <p className="font-semibold text-lg mb-1">
+                              {place.displayName?.text || "Unnamed Place"}
+                            </p>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {place.formattedAddress}
+                            </p>
+
+                            <div className="flex items-center space-x-4 text-sm mb-2">
+                              {place.rating !== undefined && (
+                                <span className="flex items-center text-amber-500">
+                                  <Star
+                                    className="w-4 h-4 mr-1"
+                                    fill="currentColor"
+                                  />
+                                  {place.rating.toFixed(1)}
+                                </span>
+                              )}
+                              {place.nationalPhoneNumber && (
+                                <span className="flex items-center text-muted-foreground">
+                                  <Phone className="w-4 h-4 mr-1" />
+                                  {place.nationalPhoneNumber}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
-                  // This case might not be reached if the section is only shown when length > 0 after loading
                   <p>No venues found matching your criteria.</p>
                 )}
               </CardContent>
