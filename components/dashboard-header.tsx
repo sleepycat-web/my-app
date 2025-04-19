@@ -1,20 +1,53 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { LayoutDashboard, Calendar, Settings, Menu } from "lucide-react"
-import { useState } from "react"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useState, useEffect } from "react";
+import {
+  LayoutDashboard,
+  Calendar,
+  Settings,
+  Menu,
+  DownloadCloud,
+} from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { DialogTitle, DialogDescription } from "@/components/ui/dialog";
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
 export function DashboardHeader() {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  useEffect(() => {
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    });
+  }, []);
 
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    await deferredPrompt.prompt();
+    setDeferredPrompt(null);
+  };
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+ 
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Calendar", href: "/calendar", icon: Calendar },
     { name: "Settings", href: "/settings", icon: Settings },
-  ]
+  ];
 
   return (
     <header className="border-b bg-background">
@@ -22,7 +55,9 @@ export function DashboardHeader() {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
             <Link href="/dashboard" className="flex items-center">
-              <span className="text-xl font-bold text-purple-600 dark:text-purple-400">EventPlannerAI</span>
+              <span className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                EventPlannerAI
+              </span>
             </Link>
           </div>
 
@@ -42,7 +77,11 @@ export function DashboardHeader() {
 
           <div className="flex items-center space-x-4">
             <ThemeToggle />
-
+            {deferredPrompt && (
+              <Button variant="outline" size="sm" onClick={handleInstallClick}>
+                <DownloadCloud className="h-4 w-4 mr-2" />
+              </Button>
+            )}
             {/* Mobile Menu */}
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild className="md:hidden">
@@ -52,6 +91,10 @@ export function DashboardHeader() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[240px] sm:w-[300px]">
+                <DialogTitle className="sr-only">Menu</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Site navigation
+                </DialogDescription>
                 <div className="flex flex-col h-full">
                   <div className="py-4">
                     <h2 className="text-lg font-semibold mb-4">Menu</h2>
@@ -76,5 +119,5 @@ export function DashboardHeader() {
         </div>
       </div>
     </header>
-  )
+  );
 }

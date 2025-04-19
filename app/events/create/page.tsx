@@ -119,7 +119,7 @@ export default function CreateEventPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="budget">Budget (USD)</Label>
+                    <Label htmlFor="budget">Budget (INR)</Label>
                     <Input
                       id="budget"
                       type="number"

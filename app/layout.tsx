@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Event Planner AI",
   description: "AI-powered assistant for planning and managing events",
-    generator: 'v0.dev'
+  manifest: "/manifest.json",
 }
 
 export default function RootLayout({
