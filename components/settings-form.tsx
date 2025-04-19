@@ -292,6 +292,9 @@ export function SettingsForm() {
                     <SelectItem value="cst">Central Time (CT)</SelectItem>
                     <SelectItem value="mst">Mountain Time (MT)</SelectItem>
                     <SelectItem value="pst">Pacific Time (PT)</SelectItem>
+                    <SelectItem value="ist">
+                      India Standard Time (IST)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
