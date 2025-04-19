@@ -48,7 +48,7 @@ export default function LoginPage() {
         alert(data.error || "Login failed");
         return;
       }
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       alert("Login error, please try again");
     } finally {

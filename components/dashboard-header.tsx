@@ -44,7 +44,7 @@ export function DashboardHeader() {
 
  
   const navItems = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Calendar", href: "/calendar", icon: Calendar },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
@@ -54,7 +54,7 @@ export function DashboardHeader() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <Link href="/dashboard" className="flex items-center">
+            <Link href="/" className="flex items-center">
               <span className="text-xl font-bold text-purple-600 dark:text-purple-400">
                 EventPlannerAI
               </span>

@@ -60,7 +60,7 @@ export default function SignupPage() {
       }
 
       // on success
-      router.push("/dashboard");
+      router.push("/");
     } catch (error: any) {
       console.error("Registration failed:", error);
       alert(error.message ?? "Registration failed");

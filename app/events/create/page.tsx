@@ -53,7 +53,7 @@ export default function CreateEventPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // In a real app, we would save the event to the database
-    router.push("/dashboard")
+    router.push("/")
   }
 
   return (

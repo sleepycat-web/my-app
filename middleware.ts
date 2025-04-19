@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
 
   // If the user is logged in and trying to access login/signup page, redirect to dashboard
   if (isPublicPath && token) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return NextResponse.redirect(new URL("/", request.url))
   }
 
   // Continue with the request if none of the above conditions are met
