@@ -149,7 +149,7 @@ export default async function EventDetailPage({
                         <div className="flex-1 pt-1">
                           <p className="font-medium">{item.time}</p>
                           <p className="text-sm text-muted-foreground">
-                            {item.activity}
+                            {item.action}
                           </p>
                         </div>
                       </li>
@@ -183,15 +183,15 @@ export default async function EventDetailPage({
                           </div>
                         </div>
                         <div className="flex-1">
-                          <p
-                            className={`font-medium ${
-                              task.status === "completed"
-                                ? "line-through text-muted-foreground"
-                                : ""
-                            }`}
-                          >
-                            {task.name}
+                          <p className={`font-medium`}>
+                            {task.title} {/* Changed from task.name */}
                           </p>
+                          {/* Add display for description */}
+                          {task.description && (
+                            <p className="text-sm text-muted-foreground">
+                              {task.description}
+                            </p>
+                          )}
                         </div>
                       </li>
                     ))}
