@@ -180,33 +180,45 @@ export default function Chatbot({
     }
   };
 
-  // Updated processResponse to find both types
+  // Updated processResponse to find both types and modify content
   const processResponse = (response: string): Message => {
     const timelineMatches = [...response.matchAll(timelineRegex)];
     const taskMatches = [...response.matchAll(taskRegex)];
 
     const data: Message["data"] = {}; // Initialize data object
+    let messageContent = response; // Default to the full response
 
-    if (timelineMatches.length > 0) {
+    const hasTimelineItems = timelineMatches.length > 0;
+    const hasTaskItems = taskMatches.length > 0;
+
+    if (hasTimelineItems) {
       data.timelineItems = timelineMatches.map((match) => ({
         time: match[1].trim(),
         action: match[2].trim(),
       }));
     }
 
-    if (taskMatches.length > 0) {
+    if (hasTaskItems) {
       data.taskItems = taskMatches.map((match) => ({
         title: match[1].trim(),
         description: match[2]?.trim() || "",
       }));
     }
 
+    // If we found either timeline or task items, replace the main content
+    if (hasTimelineItems || hasTaskItems) {
+      // You can customize this message or set it to ""
+      messageContent = "Here are a few suggestions from my side:";
+      // Or uncomment the line below for no text at all before the items:
+      // messageContent = "";
+    }
+
     // Create the message object
     const message: Message = {
       id: Date.now().toString(),
       role: "bot",
-      content: response, // Keep original response for context or clean it up later if needed
-      data: data.timelineItems || data.taskItems ? data : undefined, // Only add data if items were found
+      content: messageContent, // Use the potentially modified content
+      data: hasTimelineItems || hasTaskItems ? data : undefined, // Only add data if items were found
     };
 
     return message;
@@ -431,13 +443,15 @@ export default function Chatbot({
                           : "bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
                       }`}
                     >
-                      {/* Display raw content first (optional, could be removed if suggestions are always parsed) */}
-                      <p
-                        className="text-sm whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{
-                          __html: formatBold(message.content),
-                        }}
-                      />
+                      {/* Render the main content only if it's not empty */}
+                      {message.content && (
+                        <p
+                          className="text-sm whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{
+                            __html: formatBold(message.content),
+                          }}
+                        />
+                      )}
 
                       {/* Render Timeline Items if they exist */}
                       {message.role === "bot" &&
