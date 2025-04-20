@@ -45,8 +45,10 @@ interface Message {
   id: string;
   role: "user" | "bot";
   content: string;
-  type?: "timeline" | "task";
-  data?: any;
+  data?: {
+    timelineItems?: { time: string; action: string }[];
+    taskItems?: { title: string; description: string }[];
+  };
 }
 
 export default function Chatbot({
@@ -82,8 +84,9 @@ export default function Chatbot({
 
   // regexes for suggestion parsing
   const timelineRegex =
-    /(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(.+?)(?=\d{1,2}:\d{2}\s*(?:AM|PM)|$)/gi;
-  const taskRegex = /Task:\s*(.+?)(?:\n|$)(?:Description:\s*(.+?)(?:\n|$))?/gi;
+    /(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(.+?)(?=\n\d{1,2}:\d{2}\s*(?:AM|PM)|$)/gi; // Adjusted to better handle multiline
+  const taskRegex =
+    /Task:\s*(.+?)(?:\r?\n|\r|^)Description:\s*(.+?)(?:\r?\n|\r|$)/gi; // Adjusted for line breaks
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -157,10 +160,10 @@ export default function Chatbot({
       const data = await response.json();
       const botResponse = data.choices[0].message.content;
 
-      // Process the response to extract timeline and task suggestions
-      const processedResponse = processResponse(botResponse);
+      // Process the response to extract BOTH timeline and task suggestions
+      const processedMessage = processResponse(botResponse); // Use updated function
 
-      setMessages((prev) => [...prev, processedResponse]);
+      setMessages((prev) => [...prev, processedMessage]);
     } catch (error) {
       console.error("Error in chatbot:", error);
       setMessages((prev) => [
@@ -177,51 +180,36 @@ export default function Chatbot({
     }
   };
 
-  // Process the bot response to extract timeline and task suggestions
+  // Updated processResponse to find both types
   const processResponse = (response: string): Message => {
-    // Check if response contains timeline suggestions
-    const timelineRegex =
-      /(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(.+?)(?=\d{1,2}:\d{2}\s*(?:AM|PM)|$)/gi;
-    const taskRegex =
-      /Task:\s*(.+?)(?:\n|$)(?:Description:\s*(.+?)(?:\n|$))?/gi;
-
     const timelineMatches = [...response.matchAll(timelineRegex)];
     const taskMatches = [...response.matchAll(taskRegex)];
 
-    let type: "timeline" | "task" | undefined;
-    const data: any = {};
-    let processedContent = response; // Start with the original response
+    const data: Message["data"] = {}; // Initialize data object
 
     if (timelineMatches.length > 0) {
-      type = "timeline";
-      data.items = timelineMatches // Removed .slice(0, 5)
-        .map((match) => ({
-          time: match[1].trim(),
-          action: match[2].trim(),
-        }));
-      // Optionally remove the matched timeline strings from the main content if needed
-      // processedContent = response.replace(timelineRegex, '').trim();
-    } else if (taskMatches.length > 0) {
-      type = "task";
-      data.items = taskMatches
-        .slice(0, 5) // Keep limit for tasks for now, or remove if desired
-        .map((match) => ({
-          title: match[1].trim(),
-          description: match[2]?.trim() || "",
-        }));
-      // Optionally remove the matched task strings from the main content
-      // processedContent = response.replace(taskRegex, '').trim();
+      data.timelineItems = timelineMatches.map((match) => ({
+        time: match[1].trim(),
+        action: match[2].trim(),
+      }));
     }
 
-    // If suggestions were found, decide if the main content should still be shown
-    // For now, keep the original response as content, suggestions are extra data
-    return {
+    if (taskMatches.length > 0) {
+      data.taskItems = taskMatches.map((match) => ({
+        title: match[1].trim(),
+        description: match[2]?.trim() || "",
+      }));
+    }
+
+    // Create the message object
+    const message: Message = {
       id: Date.now().toString(),
       role: "bot",
-      content: response, // Keep original response for context
-      type,
-      data,
+      content: response, // Keep original response for context or clean it up later if needed
+      data: data.timelineItems || data.taskItems ? data : undefined, // Only add data if items were found
     };
+
+    return message;
   };
 
   const handleAddToTimeline = (item: { time: string; action: string }) => {
@@ -263,11 +251,14 @@ export default function Chatbot({
         const context = getContextString();
         const timeInfo =
           startTime && endTime ? ` between ${startTime} and ${endTime}` : "";
+        // Updated prompt to explicitly ask for both and mention format adherence
+        const suggestionPrompt = `Please provide a suggested timeline with relevant, detailed actions${timeInfo}. Format each item STRICTLY as 'hh:mm AM/PM - Action' on its own line. Then, provide exactly 5 task items formatted STRICTLY as 'Task: [title]' followed by 'Description: [short description, 1-2 sentences max]' on the next line. Ensure clear separation if providing both.`;
+
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            question: `Please provide a suggested timeline with relevant, detailed actions covering the event duration${timeInfo}. Format each item as 'hh:mm AM/PM - Action'. Then, provide exactly 5 task items formatted as 'Task: [title]\\nDescription: [short description, 1-2 sentences max]'.`,
+            question: suggestionPrompt, // Use the specific suggestion prompt
             context,
             history: [], // Start fresh for suggestions
             eventType,
@@ -278,68 +269,49 @@ export default function Chatbot({
             address: placeData?.formattedAddress || "",
           }),
         });
+
+        if (!res.ok) {
+          throw new Error(`API request failed with status ${res.status}`);
+        }
+
         const data = await res.json();
-        const reply = data.choices[0].message.content;
+        const reply = data.choices?.[0]?.message?.content;
 
-        // Use the main processResponse function to handle parsing
-        const processed = processResponse(reply);
+        if (!reply) {
+          throw new Error("Empty response from API");
+        }
 
-        // Create separate messages if both types are present in one response
-        const newMessages: Message[] = [];
+        // Use the updated processResponse to handle the reply
+        const processedSuggestionMessage = processResponse(reply);
 
+        // Add the single message (which might contain both timeline and task data)
         if (
-          processed.type === "timeline" &&
-          processed.data?.items?.length > 0
+          processedSuggestionMessage.data?.timelineItems ||
+          processedSuggestionMessage.data?.taskItems
         ) {
-          newMessages.push({
-            id: Date.now().toString() + "-tl",
-            role: "bot",
-            type: "timeline",
-            // Use a generic message or part of the reply if needed
-            content: "Here are some timeline suggestions:",
-            data: { items: processed.data.items },
-          });
-        }
-
-        // Check for tasks separately using regex directly on the reply
-        // as processResponse might only pick one type
-        const taskMatches = [...reply.matchAll(taskRegex)];
-        if (taskMatches.length > 0) {
-          newMessages.push({
-            id: Date.now().toString() + "-ts",
-            role: "bot",
-            type: "task",
-            // Use a generic message or part of the reply if needed
-            content: "Here are some task suggestions:",
-            data: {
-              items: taskMatches.slice(0, 5).map((m) => ({
-                // Keep task limit for now
-                title: m[1].trim(),
-                description: m[2]?.trim() || "",
-              })),
+          setMessages((prev) => [...prev, processedSuggestionMessage]);
+        } else {
+          // Fallback if parsing failed but got a reply
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString() + "-gen",
+              role: "bot",
+              content: reply, // Show the raw reply
             },
-          });
+          ]);
         }
 
-        // Fallback if no specific suggestions parsed but got a reply
-        if (newMessages.length === 0 && reply) {
-          newMessages.push({
-            id: Date.now().toString() + "-gen",
-            role: "bot",
-            content: reply, // Show the raw reply
-          });
-        }
-
-        setMessages((prev) => [...prev, ...newMessages]);
         onCompleteSuggestion?.();
       } catch (error) {
         console.error("Error fetching suggestions:", error);
         setMessages((prev) => [
           ...prev,
           {
-            id: Date.now().toString(),
+            id: Date.now().toString() + "-err",
             role: "bot",
-            content: "Sorry, I couldn't generate suggestions right now.",
+            content:
+              "Sorry, I couldn't generate suggestions right now. Please check the format or try again.",
           },
         ]);
         onCompleteSuggestion?.(); // Ensure this is called even on error
@@ -459,6 +431,7 @@ export default function Chatbot({
                           : "bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
                       }`}
                     >
+                      {/* Display raw content first (optional, could be removed if suggestions are always parsed) */}
                       <p
                         className="text-sm whitespace-pre-wrap"
                         dangerouslySetInnerHTML={{
@@ -466,78 +439,63 @@ export default function Chatbot({
                         }}
                       />
 
-                      {message.type === "timeline" &&
-                        message.data?.items?.length > 0 && (
-                          <div className="mt-3 space-y-2">
+                      {/* Render Timeline Items if they exist */}
+                      {message.role === "bot" &&
+                        message.data?.timelineItems &&
+                        message.data.timelineItems.length > 0 && (
+                          <div className="mt-3 space-y-2 border-t pt-2 border-gray-300 dark:border-gray-600">
                             <p className="text-xs font-semibold flex items-center">
                               <Clock className="h-3 w-3 mr-1" />
                               Suggested Timeline Items:
                             </p>
-                            {/* Ensure message.data.items is an array before mapping */}
-                            {Array.isArray(message.data.items) &&
-                              message.data.items.map(
-                                (
-                                  item: { time: string; action: string },
-                                  index: number
-                                ) => (
-                                  <div
-                                    key={`${message.id}-tl-${index}`} // More unique key
-                                    className={`rounded p-2 text-xs ${
-                                      message.role === "user"
-                                        ? "bg-purple-700"
-                                        : "bg-white dark:bg-gray-700 shadow-sm"
-                                    }`}
-                                  >
-                                    <div className="flex justify-between items-start">
-                                      <div>
-                                        <Badge
-                                          variant="outline"
-                                          className="mb-1"
-                                        >
-                                          {item.time}
-                                        </Badge>
-                                        <p>{item.action}</p>
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant={
-                                          message.role === "user"
-                                            ? "secondary"
-                                            : "default"
-                                        }
-                                        className="h-6 px-2 text-xs"
-                                        onClick={() =>
-                                          handleAddToTimeline(item)
-                                        }
-                                      >
-                                        Add
-                                      </Button>
+                            {message.data.timelineItems.map(
+                              (
+                                item: { time: string; action: string },
+                                index: number
+                              ) => (
+                                <div
+                                  key={`${message.id}-tl-${index}`}
+                                  className={`rounded p-2 text-xs bg-white dark:bg-gray-700 shadow-sm`}
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <Badge variant="outline" className="mb-1">
+                                        {item.time}
+                                      </Badge>
+                                      <p>{item.action}</p>
                                     </div>
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      className="h-6 px-2 text-xs ml-2 flex-shrink-0" // Added margin and shrink
+                                      onClick={() => handleAddToTimeline(item)}
+                                    >
+                                      Add
+                                    </Button>
                                   </div>
-                                )
-                              )}
+                                </div>
+                              )
+                            )}
                           </div>
                         )}
 
-                      {message.type === "task" &&
-                        message.data?.items?.length > 0 && (
-                          <div className="mt-3 space-y-2">
+                      {/* Render Task Items if they exist */}
+                      {message.role === "bot" &&
+                        message.data?.taskItems &&
+                        message.data.taskItems.length > 0 && (
+                          <div className="mt-3 space-y-2 border-t pt-2 border-gray-300 dark:border-gray-600">
                             <p className="text-xs font-semibold flex items-center">
                               <CheckSquare className="h-3 w-3 mr-1" />
                               Suggested Tasks:
                             </p>
-                            {message.data.items.map(
+                            {message.data.taskItems.map(
                               (
                                 item: { title: string; description: string },
                                 index: number
                               ) => (
                                 <div
-                                  key={index}
-                                  className={`rounded p-2 text-xs ${
-                                    message.role === "user"
-                                      ? "bg-purple-700"
-                                      : "bg-white dark:bg-gray-700 shadow-sm"
-                                  }`}
+                                  key={`${message.id}-ts-${index}`} // Unique key for tasks
+                                  className={`rounded p-2 text-xs bg-white dark:bg-gray-700 shadow-sm`}
                                 >
                                   <div className="flex justify-between items-start">
                                     <div>
@@ -552,12 +510,8 @@ export default function Chatbot({
                                     </div>
                                     <Button
                                       size="sm"
-                                      variant={
-                                        message.role === "user"
-                                          ? "secondary"
-                                          : "default"
-                                      }
-                                      className="h-6 px-2 text-xs"
+                                      variant="default"
+                                      className="h-6 px-2 text-xs ml-2 flex-shrink-0" // Added margin and shrink
                                       onClick={() => handleAddToTasks(item)}
                                     >
                                       Add

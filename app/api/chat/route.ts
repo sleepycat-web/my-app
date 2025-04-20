@@ -42,13 +42,19 @@ USER QUERY: ${question}
 INSTRUCTIONS:
 - Analyze the user query and event details.
 - If the query asks for a timeline or includes "timeline items":
-    - If a 'Time Range' (e.g., 6:00 PM to 10:00 PM) is provided in the EVENT DETAILS, generate relevant timeline suggestions covering that entire duration.
+    - Generate relevant timeline suggestions.
+    - If a 'Time Range' (e.g., 6:00 PM to 10:00 PM) is provided in the EVENT DETAILS, ensure the timeline covers that entire duration.
     - If no 'Time Range' is provided, generate a reasonable set of timeline suggestions based on the event type.
-    - Format each item strictly as 'hh:mm AM/PM - Detailed Action' (e.g., '6:00 PM - Guests arrive, welcome drinks served, light background music'). Ensure actions are descriptive.
-- If the query asks for tasks or includes "task items", provide relevant task suggestions. Format each item strictly as 'Task: [Task Title]' followed by 'Description: [Short, concise description, 1-2 sentences max]' on the next line. Ensure descriptions are brief.
-- If the query asks for both (like the specific suggestion request: "Please provide a suggested timeline... and 5 task items..."), generate both types of suggestions according to their respective formats, ensuring the timeline covers the specified duration if provided.
+    - Format each timeline item STRICTLY as 'hh:mm AM/PM - Detailed Action' on its own line (e.g., '6:00 PM - Guests arrive, welcome drinks served'). Ensure actions are descriptive.
+- If the query asks for tasks or includes "task items":
+    - Provide relevant task suggestions.
+    - Format each task item STRICTLY as 'Task: [Task Title]' followed by 'Description: [Short, concise description, 1-2 sentences max]' on the next line. Ensure descriptions are brief.
+- If the query asks for BOTH timeline and tasks (e.g., "provide a timeline and 5 tasks"):
+    - Generate BOTH types of suggestions.
+    - Clearly separate the sections, perhaps using headers like "TIMELINE:" and "TASKS:".
+    - Adhere STRICTLY to the specified formats for each type ('hh:mm AM/PM - Action' for timeline, 'Task: ...\nDescription: ...' for tasks).
 - If the query is general, provide a helpful, conversational response related to event planning.
-- Adhere strictly to the requested formats when generating timelines or tasks.
+- DO NOT deviate from the requested formats when generating timelines or tasks. Ensure each timeline item is on a new line starting with the time format. Ensure each task starts with 'Task:' and its description starts with 'Description:' on the next line.
 `;
 
     const apiKey = process.env.GEMINI_API_KEY;
