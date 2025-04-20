@@ -385,16 +385,28 @@ export default function CreateEventPage() {
 
   // Additions for Chatbot integration
   const handleAddTimeline = (item: { time: string; action: string }) => {
-    setFormData((prev) => ({
-      ...prev,
-      timelineItems: [...prev.timelineItems, item],
-    }));
+    console.log("handleAddTimeline called with:", item); // Add log
+    setFormData((prev) => {
+      console.log("Updating timelineItems. Prev:", prev.timelineItems); // Add log
+      const newTimelineItems = [...prev.timelineItems, item];
+      console.log("New timelineItems:", newTimelineItems); // Add log
+      return {
+        ...prev,
+        timelineItems: newTimelineItems,
+      };
+    });
   };
   const handleAddTask = (item: { title: string; description: string }) => {
-    setFormData((prev) => ({
-      ...prev,
-      tasksItems: [...prev.tasksItems, item],
-    }));
+    console.log("handleAddTask called with:", item); // Add log
+    setFormData((prev) => {
+      console.log("Updating tasksItems. Prev:", prev.tasksItems); // Add log
+      const newTasksItems = [...prev.tasksItems, item];
+      console.log("New tasksItems:", newTasksItems); // Add log
+      return {
+        ...prev,
+        tasksItems: newTasksItems,
+      };
+    });
   };
   const getSelectedVenueData = () => {
     if (!selectedVenueId) return null;
