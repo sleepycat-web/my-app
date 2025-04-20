@@ -26,20 +26,29 @@ export async function POST(req: Request) {
     const prompt = `
 ${
   formattedHistory ? `HISTORY:\n${formattedHistory}\n\n` : ""
-}You are an event planning assistant. Your task is to recommend timelines and tasks for events.
+}You are an event planning assistant. Your task is to recommend timelines and tasks for events based on the provided details.
 
 EVENT DETAILS:
-${eventType ? `Event Type: ${eventType}` : ""}
-${guestCount ? `Number of Guests: ${guestCount}` : ""}
-${timeRange ? `Time Range: ${timeRange}` : ""}
-${budget ? `Budget: ${budget}` : ""}
-${venue ? `Venue: ${venue}` : ""}
-${address ? `Address: ${address}` : ""}
+${eventType ? `Event Type: ${eventType}` : "Not specified"}
+${guestCount ? `Number of Guests: ${guestCount}` : "Not specified"}
+${timeRange ? `Time Range: ${timeRange}` : "Not specified"}
+${budget ? `Budget: ${budget}` : "Not specified"}
+${venue ? `Venue: ${venue}` : "Not specified"}
+${address ? `Address: ${address}` : "Not specified"}
 ${context ? `Additional Context: ${context}` : ""}
 
 USER QUERY: ${question}
 
-Please provide helpful recommendations for this event. If the user is asking about timeline suggestions, format your response with clear time slots like "6:00 PM - Welcome guests". If the user is asking about tasks, format your response with "Task: [task name]" followed by "Description: [description]" on the next line.
+INSTRUCTIONS:
+- Analyze the user query and event details.
+- If the query asks for a timeline or includes "timeline items":
+    - If a 'Time Range' (e.g., 6:00 PM to 10:00 PM) is provided in the EVENT DETAILS, generate relevant timeline suggestions covering that entire duration.
+    - If no 'Time Range' is provided, generate a reasonable set of timeline suggestions based on the event type.
+    - Format each item strictly as 'hh:mm AM/PM - Detailed Action' (e.g., '6:00 PM - Guests arrive, welcome drinks served, light background music'). Ensure actions are descriptive.
+- If the query asks for tasks or includes "task items", provide relevant task suggestions. Format each item strictly as 'Task: [Task Title]' followed by 'Description: [Short, concise description, 1-2 sentences max]' on the next line. Ensure descriptions are brief.
+- If the query asks for both (like the specific suggestion request: "Please provide a suggested timeline... and 5 task items..."), generate both types of suggestions according to their respective formats, ensuring the timeline covers the specified duration if provided.
+- If the query is general, provide a helpful, conversational response related to event planning.
+- Adhere strictly to the requested formats when generating timelines or tasks.
 `;
 
     const apiKey = process.env.GEMINI_API_KEY;

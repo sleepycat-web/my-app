@@ -190,29 +190,35 @@ export default function Chatbot({
 
     let type: "timeline" | "task" | undefined;
     const data: any = {};
+    let processedContent = response; // Start with the original response
 
     if (timelineMatches.length > 0) {
       type = "timeline";
-      data.items = timelineMatches
-        .slice(0, 5) // limit to 5
+      data.items = timelineMatches // Removed .slice(0, 5)
         .map((match) => ({
           time: match[1].trim(),
           action: match[2].trim(),
         }));
+      // Optionally remove the matched timeline strings from the main content if needed
+      // processedContent = response.replace(timelineRegex, '').trim();
     } else if (taskMatches.length > 0) {
       type = "task";
       data.items = taskMatches
-        .slice(0, 5) // limit to 5
+        .slice(0, 5) // Keep limit for tasks for now, or remove if desired
         .map((match) => ({
           title: match[1].trim(),
           description: match[2]?.trim() || "",
         }));
+      // Optionally remove the matched task strings from the main content
+      // processedContent = response.replace(taskRegex, '').trim();
     }
 
+    // If suggestions were found, decide if the main content should still be shown
+    // For now, keep the original response as content, suggestions are extra data
     return {
       id: Date.now().toString(),
       role: "bot",
-      content: response,
+      content: response, // Keep original response for context
       type,
       data,
     };
@@ -255,14 +261,15 @@ export default function Chatbot({
       setIsLoading(true);
       try {
         const context = getContextString();
+        const timeInfo =
+          startTime && endTime ? ` between ${startTime} and ${endTime}` : "";
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            question:
-              "Please provide exactly 5 timeline items between the event start and end times with relevant actions, formatted as 'hh:mm AM/PM - Action', then 5 task items formatted as 'Task: [title]\\nDescription: [description]'.",
+            question: `Please provide a suggested timeline with relevant, detailed actions covering the event duration${timeInfo}. Format each item as 'hh:mm AM/PM - Action'. Then, provide exactly 5 task items formatted as 'Task: [title]\\nDescription: [short description, 1-2 sentences max]'.`,
             context,
-            history: [],
+            history: [], // Start fresh for suggestions
             eventType,
             guestCount,
             timeRange: startTime && endTime ? `${startTime} to ${endTime}` : "",
@@ -273,48 +280,75 @@ export default function Chatbot({
         });
         const data = await res.json();
         const reply = data.choices[0].message.content;
-        const timelineMatches = [...reply.matchAll(timelineRegex)];
-        const taskMatches = [...reply.matchAll(taskRegex)];
+
+        // Use the main processResponse function to handle parsing
+        const processed = processResponse(reply);
+
+        // Create separate messages if both types are present in one response
         const newMessages: Message[] = [];
-        if (timelineMatches.length) {
+
+        if (
+          processed.type === "timeline" &&
+          processed.data?.items?.length > 0
+        ) {
           newMessages.push({
             id: Date.now().toString() + "-tl",
             role: "bot",
             type: "timeline",
-            content: reply,
-            data: {
-              items: timelineMatches.slice(0, 5).map((m) => ({
-                time: m[1].trim(),
-                action: m[2].trim(),
-              })),
-            },
+            // Use a generic message or part of the reply if needed
+            content: "Here are some timeline suggestions:",
+            data: { items: processed.data.items },
           });
         }
-        if (taskMatches.length) {
+
+        // Check for tasks separately using regex directly on the reply
+        // as processResponse might only pick one type
+        const taskMatches = [...reply.matchAll(taskRegex)];
+        if (taskMatches.length > 0) {
           newMessages.push({
             id: Date.now().toString() + "-ts",
             role: "bot",
             type: "task",
-            content: reply,
+            // Use a generic message or part of the reply if needed
+            content: "Here are some task suggestions:",
             data: {
               items: taskMatches.slice(0, 5).map((m) => ({
+                // Keep task limit for now
                 title: m[1].trim(),
                 description: m[2]?.trim() || "",
               })),
             },
           });
         }
+
+        // Fallback if no specific suggestions parsed but got a reply
+        if (newMessages.length === 0 && reply) {
+          newMessages.push({
+            id: Date.now().toString() + "-gen",
+            role: "bot",
+            content: reply, // Show the raw reply
+          });
+        }
+
         setMessages((prev) => [...prev, ...newMessages]);
         onCompleteSuggestion?.();
       } catch (error) {
         console.error("Error fetching suggestions:", error);
-        // ...existing error handling...
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            role: "bot",
+            content: "Sorry, I couldn't generate suggestions right now.",
+          },
+        ]);
+        onCompleteSuggestion?.(); // Ensure this is called even on error
       } finally {
         setIsLoading(false);
       }
     };
     fetchSuggestion();
-  }, [suggestionTrigger]);
+  }, [suggestionTrigger]); // Add dependencies like startTime, endTime if the prompt changes based on them
 
   return (
     <div className={cn("fixed bottom-4 right-4 z-50", className)}>
@@ -439,42 +473,49 @@ export default function Chatbot({
                               <Clock className="h-3 w-3 mr-1" />
                               Suggested Timeline Items:
                             </p>
-                            {message.data.items.map(
-                              (
-                                item: { time: string; action: string },
-                                index: number
-                              ) => (
-                                <div
-                                  key={index}
-                                  className={`rounded p-2 text-xs ${
-                                    message.role === "user"
-                                      ? "bg-purple-700"
-                                      : "bg-white dark:bg-gray-700 shadow-sm"
-                                  }`}
-                                >
-                                  <div className="flex justify-between items-start">
-                                    <div>
-                                      <Badge variant="outline" className="mb-1">
-                                        {item.time}
-                                      </Badge>
-                                      <p>{item.action}</p>
+                            {/* Ensure message.data.items is an array before mapping */}
+                            {Array.isArray(message.data.items) &&
+                              message.data.items.map(
+                                (
+                                  item: { time: string; action: string },
+                                  index: number
+                                ) => (
+                                  <div
+                                    key={`${message.id}-tl-${index}`} // More unique key
+                                    className={`rounded p-2 text-xs ${
+                                      message.role === "user"
+                                        ? "bg-purple-700"
+                                        : "bg-white dark:bg-gray-700 shadow-sm"
+                                    }`}
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <Badge
+                                          variant="outline"
+                                          className="mb-1"
+                                        >
+                                          {item.time}
+                                        </Badge>
+                                        <p>{item.action}</p>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant={
+                                          message.role === "user"
+                                            ? "secondary"
+                                            : "default"
+                                        }
+                                        className="h-6 px-2 text-xs"
+                                        onClick={() =>
+                                          handleAddToTimeline(item)
+                                        }
+                                      >
+                                        Add
+                                      </Button>
                                     </div>
-                                    <Button
-                                      size="sm"
-                                      variant={
-                                        message.role === "user"
-                                          ? "secondary"
-                                          : "default"
-                                      }
-                                      className="h-6 px-2 text-xs"
-                                      onClick={() => handleAddToTimeline(item)}
-                                    >
-                                      Add
-                                    </Button>
                                   </div>
-                                </div>
-                              )
-                            )}
+                                )
+                              )}
                           </div>
                         )}
 
