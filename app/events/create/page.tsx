@@ -1,7 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type React from "react";
 import Image from "next/image"; // Import Next.js Image component
+const Chatbot = dynamic(() => import("@/components/chatbot"), { ssr: false });
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -68,6 +70,8 @@ export default function CreateEventPage() {
     location: "", // Location for search
     manualVenue: "", // New field for manual venue entry
     description: "",
+    timelineItems: [] as { time: string; action: string }[],
+    tasksItems: [] as { title: string; description: string }[],
   });
   // user currency preference
   const [currency, setCurrency] = useState<string>("INR");
@@ -81,7 +85,8 @@ export default function CreateEventPage() {
         if (data.user?.preferences?.currency) {
           setCurrency(data.user.preferences.currency);
         }
-        if (data.user?.email) { // Add this check
+        if (data.user?.email) {
+          // Add this check
           setUserEmail(data.user.email); // Store the email
         }
       })
@@ -132,8 +137,8 @@ export default function CreateEventPage() {
 
     try {
       // Construct a query for the Places API
-      const textQuery = `${formData.type} venue for ${formData.guestCount} guests near ${formData.location}`;
-
+      const textQuery = `${formData.type} venue for ${formData.guestCount} guests near ${formData.location} under ${currency} ${formData.budget} open between ${formData.startTime} and ${formData.endTime}`;
+      console.log("Text Query for API:", textQuery);
       const response = await fetch("/api/places/search", {
         method: "POST",
         headers: {
@@ -193,6 +198,54 @@ export default function CreateEventPage() {
     }
   };
 
+  // Handlers for dynamic timeline and tasks
+  const addTimelineItem = () => {
+    setFormData((prev) => ({
+      ...prev,
+      timelineItems: [...prev.timelineItems, { time: "", action: "" }],
+    }));
+  };
+  const updateTimelineItem = (
+    index: number,
+    field: "time" | "action",
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const items = [...prev.timelineItems];
+      items[index] = { ...items[index], [field]: value };
+      return { ...prev, timelineItems: items };
+    });
+  };
+  const removeTimelineItem = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      timelineItems: prev.timelineItems.filter((_, i) => i !== index),
+    }));
+  };
+  const addTaskItem = () => {
+    setFormData((prev) => ({
+      ...prev,
+      tasksItems: [...prev.tasksItems, { title: "", description: "" }],
+    }));
+  };
+  const updateTaskItem = (
+    index: number,
+    field: "title" | "description",
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const items = [...prev.tasksItems];
+      items[index] = { ...items[index], [field]: value };
+      return { ...prev, tasksItems: items };
+    });
+  };
+  const removeTaskItem = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      tasksItems: prev.tasksItems.filter((_, i) => i !== index),
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isTimeInvalid) return;
@@ -237,11 +290,14 @@ export default function CreateEventPage() {
     const eventData = {
       email: userEmail, // Include the user's email
       eventName: formData.name,
-      date: formData.date ? formData.date.toLocaleDateString('en-US', { // Example formatting, adjust as needed
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }) : "",
+      date: formData.date
+        ? formData.date.toLocaleDateString("en-US", {
+            // Example formatting, adjust as needed
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })
+        : "",
       startTime: formData.startTime,
       endTime: formData.endTime,
       details: {
@@ -251,8 +307,8 @@ export default function CreateEventPage() {
         budget: formData.budget ? `${currency} ${formData.budget}` : "",
         description: formData.description,
       },
-      timeline: [], // Empty timeline
-      tasks: [],    // Empty tasks
+      timeline: formData.timelineItems,
+      tasks: formData.tasksItems,
       name: formData.name, // As per requested format
     };
 
@@ -260,19 +316,19 @@ export default function CreateEventPage() {
 
     try {
       // Make the actual API call to POST /api/events
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(eventData),
       });
 
       if (!response.ok) {
         const errorResult = await response.json();
-        throw new Error(errorResult.message || 'Failed to create event');
+        throw new Error(errorResult.message || "Failed to create event");
       }
 
       const result = await response.json();
-      console.log('Event created:', result);
+      console.log("Event created:", result);
 
       alert("Event created successfully!");
       router.push("/"); // Redirect after successful submission
@@ -287,6 +343,24 @@ export default function CreateEventPage() {
       setIsSubmitting(false);
     }
   }; // <-- Added missing closing brace for handleSubmit
+
+  // Additions for Chatbot integration
+  const handleAddTimeline = (item: { time: string; action: string }) => {
+    setFormData((prev) => ({
+      ...prev,
+      timelineItems: [...prev.timelineItems, item],
+    }));
+  };
+  const handleAddTask = (item: { title: string; description: string }) => {
+    setFormData((prev) => ({
+      ...prev,
+      tasksItems: [...prev.tasksItems, item],
+    }));
+  };
+  const getSelectedVenueData = () => {
+    if (!selectedVenueId) return null;
+    return searchResults.find((venue) => venue.id === selectedVenueId) || null;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -495,6 +569,70 @@ export default function CreateEventPage() {
                     }
                   />
                 </div>
+
+                {/* Timeline Inputs */}
+                <div className="space-y-2">
+                  <h2 className="text-lg font-semibold">Timeline</h2>
+                  {formData.timelineItems.map((item, i) => (
+                    <div key={i} className="flex items-center space-x-2">
+                      <TimePicker
+                        value={item.time}
+                        placeholder="Time"
+                        onChange={(t) => updateTimelineItem(i, "time", t)}
+                      />
+                      <Input
+                        placeholder="Action"
+                        value={item.action}
+                        onChange={(e) =>
+                          updateTimelineItem(i, "action", e.target.value)
+                        }
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeTimelineItem(i)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" onClick={addTimelineItem}>
+                    Add Timeline Item
+                  </Button>
+                </div>
+
+                {/* Tasks Inputs */}
+                <div className="space-y-2">
+                  <h2 className="text-lg font-semibold">Tasks</h2>
+                  {formData.tasksItems.map((item, i) => (
+                    <div key={i} className="flex items-center space-x-2">
+                      <Input
+                        placeholder="Task Title"
+                        value={item.title}
+                        onChange={(e) =>
+                          updateTaskItem(i, "title", e.target.value)
+                        }
+                      />
+                      <Input
+                        placeholder="Description"
+                        value={item.description}
+                        onChange={(e) =>
+                          updateTaskItem(i, "description", e.target.value)
+                        }
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeTaskItem(i)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" onClick={addTaskItem}>
+                    Add Task
+                  </Button>
+                </div>
               </CardContent>
               <CardFooter className="flex justify-between items-start flex-wrap gap-4">
                 {/* Search Venues button */}
@@ -650,6 +788,18 @@ export default function CreateEventPage() {
           )}
         </div>
       </main>
+      {/* Chatbot insertion */}
+      <Chatbot
+        placeData={getSelectedVenueData()}
+        eventType={formData.type}
+        guestCount={formData.guestCount}
+        startTime={formData.startTime}
+        endTime={formData.endTime}
+        budget={formData.budget}
+        currency={currency}
+        onAddTimeline={handleAddTimeline}
+        onAddTask={handleAddTask}
+      />
     </div>
   );
 }
