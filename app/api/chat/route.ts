@@ -7,6 +7,7 @@ export async function POST(req: Request) {
     const {
       question,
       context,
+      history = [],
       eventType,
       guestCount,
       timeRange,
@@ -15,8 +16,17 @@ export async function POST(req: Request) {
       address,
     } = await req.json();
 
+    // Format history lines
+    const formattedHistory = history
+      .map((m: any) =>
+        m.role === "user" ? `User: ${m.content}` : `Assistant: ${m.content}`
+      )
+      .join("\n");
+
     const prompt = `
-You are an event planning assistant. Your task is to recommend timelines and tasks for events.
+${
+  formattedHistory ? `HISTORY:\n${formattedHistory}\n\n` : ""
+}You are an event planning assistant. Your task is to recommend timelines and tasks for events.
 
 EVENT DETAILS:
 ${eventType ? `Event Type: ${eventType}` : ""}
