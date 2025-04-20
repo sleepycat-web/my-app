@@ -58,6 +58,9 @@ export default function CreateEventPage() {
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null); // State for selected venue ID
   const [isSubmitting, setIsSubmitting] = useState(false); // State for submission loading
   const [userEmail, setUserEmail] = useState<string | null>(null); // State for user email
+  const [suggestionPending, setSuggestionPending] = useState(false);
+  const [badgeCount, setBadgeCount] = useState(0);
+  const [suggestionTrigger, setSuggestionTrigger] = useState(0);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -122,6 +125,25 @@ export default function CreateEventPage() {
     return toMinutes(t1) < toMinutes(t2);
   }
 
+  // Process AI response for timelines and tasks
+  function processChatbotResponse(response: string) {
+    const timelineRegex =
+      /(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(.+?)(?=\d{1,2}:\d{2}\s*(?:AM|PM)|$)/gi;
+    const taskRegex =
+      /Task:\s*(.+?)(?:\n|$)(?:Description:\s*(.+?)(?:\n|$))?/gi;
+
+    const timelineItems = [...response.matchAll(timelineRegex)].map((m) => ({
+      time: m[1].trim(),
+      action: m[2].trim(),
+    }));
+    const tasksItems = [...response.matchAll(taskRegex)].map((m) => ({
+      title: m[1].trim(),
+      description: m[2]?.trim() || "",
+    }));
+
+    return { timelineItems, tasksItems };
+  }
+
   // Function to handle venue search
   const handleSearchVenues = async () => {
     if (!formData.type || !formData.guestCount || !formData.location) {
@@ -134,6 +156,10 @@ export default function CreateEventPage() {
     setIsSearching(true);
     setSearchResults([]); // Clear previous results
     setSelectedVenueId(null); // Reset selection on new search
+
+    // trigger chat-notify
+    setSuggestionPending(true);
+    setBadgeCount(1);
 
     try {
       // Construct a query for the Places API
@@ -170,6 +196,9 @@ export default function CreateEventPage() {
             (b.rating ?? 0) - (a.rating ?? 0)
         );
       setSearchResults(sortedPlaces); // Update results, ensuring it's an array
+
+      // tell Chatbot to fetch timelines/tasks
+      setSuggestionTrigger((prev) => prev + 1);
     } catch (error) {
       console.error("Error searching for venues:", error);
       alert(
@@ -181,6 +210,16 @@ export default function CreateEventPage() {
     } finally {
       setIsSearching(false);
     }
+  };
+
+  // clear badge when suggestions are ready in chat
+  const handleCompleteSuggestion = () => {
+    setSuggestionPending(false);
+  };
+
+  const handleChatOpen = () => {
+    setBadgeCount(0);
+    setSuggestionPending(false);
   };
 
   // Function to handle venue selection
@@ -799,6 +838,11 @@ export default function CreateEventPage() {
         currency={currency}
         onAddTimeline={handleAddTimeline}
         onAddTask={handleAddTask}
+        suggestionPending={suggestionPending}
+        suggestionTrigger={suggestionTrigger}
+        badgeCount={badgeCount}
+        onOpen={handleChatOpen}
+        onCompleteSuggestion={handleCompleteSuggestion}
       />
     </div>
   );

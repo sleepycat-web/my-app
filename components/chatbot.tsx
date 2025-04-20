@@ -10,6 +10,7 @@ import {
   Loader2,
   X,
   MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+// helper to replace **text** with HTML bold
+const formatBold = (text: string) =>
+  text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 
 interface ChatbotProps {
   placeData?: any; // Google Maps API place data
@@ -29,6 +34,11 @@ interface ChatbotProps {
   onAddTimeline?: (item: { time: string; action: string }) => void;
   onAddTask?: (item: { title: string; description: string }) => void;
   className?: string;
+  badgeCount?: number;
+  suggestionPending?: boolean;
+  onOpen?: () => void;
+  suggestionTrigger?: number;
+  onCompleteSuggestion?: () => void;
 }
 
 interface Message {
@@ -50,6 +60,11 @@ export default function Chatbot({
   onAddTimeline,
   onAddTask,
   className,
+  badgeCount = 0,
+  suggestionPending = false,
+  onOpen,
+  suggestionTrigger,
+  onCompleteSuggestion,
 }: ChatbotProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -64,6 +79,11 @@ export default function Chatbot({
   const [isOpen, setIsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // regexes for suggestion parsing
+  const timelineRegex =
+    /(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(.+?)(?=\d{1,2}:\d{2}\s*(?:AM|PM)|$)/gi;
+  const taskRegex = /Task:\s*(.+?)(?:\n|$)(?:Description:\s*(.+?)(?:\n|$))?/gi;
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -120,6 +140,7 @@ export default function Chatbot({
         body: JSON.stringify({
           question: query,
           context: context,
+          history: [...messages, userMessage],
           eventType: eventType,
           guestCount: guestCount,
           timeRange: startTime && endTime ? `${startTime} to ${endTime}` : "",
@@ -172,16 +193,20 @@ export default function Chatbot({
 
     if (timelineMatches.length > 0) {
       type = "timeline";
-      data.items = timelineMatches.map((match) => ({
-        time: match[1].trim(),
-        action: match[2].trim(),
-      }));
+      data.items = timelineMatches
+        .slice(0, 5) // limit to 5
+        .map((match) => ({
+          time: match[1].trim(),
+          action: match[2].trim(),
+        }));
     } else if (taskMatches.length > 0) {
       type = "task";
-      data.items = taskMatches.map((match) => ({
-        title: match[1].trim(),
-        description: match[2]?.trim() || "",
-      }));
+      data.items = taskMatches
+        .slice(0, 5) // limit to 5
+        .map((match) => ({
+          title: match[1].trim(),
+          description: match[2]?.trim() || "",
+        }));
     }
 
     return {
@@ -213,8 +238,83 @@ export default function Chatbot({
   };
 
   const toggleChat = () => {
+    if (!isOpen && onOpen) onOpen(); // notify parent on first open
     setIsOpen(!isOpen);
   };
+
+  // clear chat back to empty
+  const clearChat = () => {
+    setMessages([]);
+  };
+
+  // auto‑trigger AI suggestions when parent clicks "Get AI Suggestions"
+  useEffect(() => {
+    // only fetch suggestions when trigger > 0 (i.e. after "Get AI Suggestions" click)
+    if (!suggestionTrigger) return;
+    const fetchSuggestion = async () => {
+      setIsLoading(true);
+      try {
+        const context = getContextString();
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question:
+              "Please provide exactly 5 timeline items between the event start and end times with relevant actions, formatted as 'hh:mm AM/PM - Action', then 5 task items formatted as 'Task: [title]\\nDescription: [description]'.",
+            context,
+            history: [],
+            eventType,
+            guestCount,
+            timeRange: startTime && endTime ? `${startTime} to ${endTime}` : "",
+            budget: budget ? `${currency} ${budget}` : "",
+            venue: placeData?.displayName?.text || "",
+            address: placeData?.formattedAddress || "",
+          }),
+        });
+        const data = await res.json();
+        const reply = data.choices[0].message.content;
+        const timelineMatches = [...reply.matchAll(timelineRegex)];
+        const taskMatches = [...reply.matchAll(taskRegex)];
+        const newMessages: Message[] = [];
+        if (timelineMatches.length) {
+          newMessages.push({
+            id: Date.now().toString() + "-tl",
+            role: "bot",
+            type: "timeline",
+            content: reply,
+            data: {
+              items: timelineMatches.slice(0, 5).map((m) => ({
+                time: m[1].trim(),
+                action: m[2].trim(),
+              })),
+            },
+          });
+        }
+        if (taskMatches.length) {
+          newMessages.push({
+            id: Date.now().toString() + "-ts",
+            role: "bot",
+            type: "task",
+            content: reply,
+            data: {
+              items: taskMatches.slice(0, 5).map((m) => ({
+                title: m[1].trim(),
+                description: m[2]?.trim() || "",
+              })),
+            },
+          });
+        }
+        setMessages((prev) => [...prev, ...newMessages]);
+        onCompleteSuggestion?.();
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
+        // ...existing error handling...
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSuggestion();
+  }, [suggestionTrigger]);
 
   return (
     <div className={cn("fixed bottom-4 right-4 z-50", className)}>
@@ -222,32 +322,57 @@ export default function Chatbot({
       {!isOpen && (
         <Button
           onClick={toggleChat}
-          className="h-14 w-14 rounded-full shadow-lg bg-purple-600 hover:bg-purple-700 transition-all duration-300"
+          className="relative h-14 w-14 rounded-full shadow-lg bg-purple-600 hover:bg-purple-700 transition-all duration-300"
         >
-          <MessageSquare className="h-6 w-6" />
+          {suggestionPending ? (
+            <Loader2 className="h-6 w-6 animate-spin" />
+          ) : (
+            <MessageSquare className="h-6 w-6" />
+          )}
+          {badgeCount > 0 && (
+            <Badge
+              variant="destructive"
+              className="absolute -top-1 -right-1 p-1 rounded-full text-xs"
+            >
+              {badgeCount}
+            </Badge>
+          )}
         </Button>
       )}
 
       {/* Chat window when open */}
       {isOpen && (
         <Card className="w-[350px] sm:w-[400px] h-[500px] flex flex-col shadow-xl animate-in slide-in-from-bottom-10 duration-300">
-          <CardHeader className="px-4 py-3 border-b flex flex-row items-center justify-between">
-            <CardTitle className="text-lg flex items-center">
-              <Sparkles className="h-5 w-5 mr-2 text-purple-500" />
-              Event Assistant
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleChat}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
+          {/* Header component with single-line alignment */}
+          <div className="flex items-center justify-between px-4 py-3 border-b">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-purple-500" />
+              <span className="text-lg font-semibold whitespace-nowrap">
+                Event Assistant
+              </span>
+            </div>
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearChat}
+                className="h-8 w-8 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleChat}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
-          {/* Selected event details summary */}
-          <div className="px-4 py-2 bg-gray-50 text-sm space-y-1 border-b">
+          {/* Selected event details summary
+          <div className="px-4 text-sm space-y-1 ">
             {eventType && (
               <p>
                 <strong>Type:</strong> {eventType}
@@ -267,8 +392,8 @@ export default function Chatbot({
               <p>
                 <strong>Budget:</strong> {currency} {budget}
               </p>
-                      )}
-                       {budget && (
+            )}
+            {budget && (
               <p>
                 <strong>Budget:</strong> {currency} {budget}
               </p>
@@ -278,7 +403,7 @@ export default function Chatbot({
                 <strong>Venue:</strong> {placeData.displayName.text}
               </p>
             )}
-          </div>
+          </div> */}
 
           <CardContent className="flex-1 p-0 flex flex-col overflow-hidden">
             <ScrollArea
@@ -300,9 +425,12 @@ export default function Chatbot({
                           : "bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">
-                        {message.content}
-                      </p>
+                      <p
+                        className="text-sm whitespace-pre-wrap"
+                        dangerouslySetInnerHTML={{
+                          __html: formatBold(message.content),
+                        }}
+                      />
 
                       {message.type === "timeline" &&
                         message.data?.items?.length > 0 && (
